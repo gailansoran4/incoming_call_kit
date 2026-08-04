@@ -53,24 +53,10 @@ class IncomingCallService : Service() {
     @Suppress("DEPRECATION")
     private fun ensureForeground(intent: Intent? = null) {
         try {
-            // Try to build the real notification immediately to avoid "Call Service" flash
-            val notification = if (intent?.action == Constants.ACTION_SHOW_INCOMING) {
-                val callId = intent.getStringExtra(Constants.EXTRA_CALL_ID)
-                val config = callId?.let { CallKitConfigStore.load(this, it) }
-                if (config != null) {
-                    val callerName = config["callerName"] as? String ?: "Unknown"
-                    val callerNumber = config["callerNumber"] as? String
-                    val androidConfig = config["android"] as? Map<String, Any?>
-                    val initialsBitmap = NotificationBuilder.buildInitialsBitmap(callerName)
-                    NotificationBuilder.buildIncomingCallNotification(
-                        this, callId!!, callerName, callerNumber, androidConfig, initialsBitmap
-                    )
-                } else {
-                    NotificationBuilder.buildMinimalForegroundNotification(this)
-                }
-            } else {
-                NotificationBuilder.buildMinimalForegroundNotification(this)
-            }
+            // Always use a silent minimal notification here.
+            // Posting the real FSI/CallStyle notification in ensureForeground AND again in
+            // handleShowIncoming (plus a second notify() under another id) caused duplicate UIs.
+            val notification = NotificationBuilder.buildMinimalForegroundNotification(this)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 startForeground(
                     Constants.FOREGROUND_SERVICE_NOTIFICATION_ID,
@@ -104,19 +90,29 @@ class IncomingCallService : Service() {
         val callerName = config["callerName"] as? String ?: "Unknown"
         val callerNumber = config["callerNumber"] as? String
         val androidConfig = config["android"] as? Map<String, Any?>
+        val textAccept = config["textAccept"] as? String ?: "Accept"
+        val textDecline = config["textDecline"] as? String ?: "Decline"
         val duration = (config["duration"] as? Number)?.toLong() ?: 30000L
 
         // Build and show notification — initials bitmap immediately (no network delay)
         val initialsBitmap = NotificationBuilder.buildInitialsBitmap(callerName)
         val notification = NotificationBuilder.buildIncomingCallNotification(
-            this, callId, callerName, callerNumber, androidConfig, initialsBitmap
+            this,
+            callId,
+            callerName,
+            callerNumber,
+            androidConfig,
+            initialsBitmap,
+            textAccept,
+            textDecline,
         )
         val notifId = NotificationBuilder.getNotificationId(callId)
 
-        // Clear existing notification for same callId (anti-duplicate)
+        // Clear any leftover per-call notification from older plugin versions / fallbacks
         NotificationManagerCompat.from(this).cancel(notifId)
 
-        // Update foreground with the call notification
+        // Single post via startForeground only — never dual-notify under a second id
+        // (second post re-fired FullScreenIntent and showed two call UIs).
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 startForeground(
@@ -129,13 +125,10 @@ class IncomingCallService : Service() {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to update foreground notification", e)
-            NotificationManagerCompat.from(this).notify(notifId, notification)
+            try {
+                NotificationManagerCompat.from(this).notify(notifId, notification)
+            } catch (_: Exception) {}
         }
-
-        // ALSO post as regular notification (dual-post for OEMs)
-        try {
-            NotificationManagerCompat.from(this).notify(notifId, notification)
-        } catch (_: Exception) {}
 
         // Start ringtone + vibration
         ringtoneManager.startRinging(androidConfig ?: emptyMap())
@@ -152,17 +145,27 @@ class IncomingCallService : Service() {
         activeCallIds.add(callId)
         callTimestamps[callId] = System.currentTimeMillis()
 
-        // Download real avatar in background and update notification
+        // Download real avatar in background and update the same FGS notification
         val avatarUrl = config["avatar"] as? String
         if (!avatarUrl.isNullOrEmpty()) {
             Thread {
                 val avatarBitmap = NotificationBuilder.downloadCircularBitmap(avatarUrl)
                 if (avatarBitmap != null && activeCallIds.contains(callId)) {
                     val updated = NotificationBuilder.buildIncomingCallNotification(
-                        this, callId, callerName, callerNumber, androidConfig, avatarBitmap
+                        this,
+                        callId,
+                        callerName,
+                        callerNumber,
+                        androidConfig,
+                        avatarBitmap,
+                        textAccept,
+                        textDecline,
                     )
                     try {
-                        NotificationManagerCompat.from(this).notify(notifId, updated)
+                        NotificationManagerCompat.from(this).notify(
+                            Constants.FOREGROUND_SERVICE_NOTIFICATION_ID,
+                            updated,
+                        )
                     } catch (e: Exception) {
                         Log.e(TAG, "Failed to update notification with avatar", e)
                     }

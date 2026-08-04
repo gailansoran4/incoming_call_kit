@@ -1,3 +1,11 @@
+## 0.0.2
+
+* **Android**: Fix duplicate incoming-call UI caused by posting the same FullScreenIntent notification twice (foreground service + second notify under another id).
+* **Android**: `ensureForeground` now uses a silent minimal notification only; the real call notification is posted once in `handleShowIncoming`.
+* **Android**: Heads-up / notification actions now use `textAccept` and `textDecline` (same labels as the full-screen Activity). Custom labels skip `CallStyle` because it forces system "Answer"/"Decline".
+* **Android**: Stronger full-screen Activity dedupe for concurrent FullScreenIntent launches.
+* **iOS**: No duplicate-UI change needed (single `reportNewIncomingCall`). Accept/Decline button titles remain system-controlled by CallKit (Apple does not allow custom action labels).
+
 ## 0.0.1
 
 * Initial release of `incoming_call_kit`.

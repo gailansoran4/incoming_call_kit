@@ -35,8 +35,11 @@ class IncomingCallActivity : AppCompatActivity() {
 
     companion object {
         private const val TAG = "IncomingCallActivity"
+        private val activityLock = Any()
         @Volatile
         var isActivityAlive = false
+        @Volatile
+        var activeCallId: String? = null
         var lastAliveTimestamp = 0L
         var finishActivity: (() -> Unit)? = null
     }
@@ -82,14 +85,17 @@ class IncomingCallActivity : AppCompatActivity() {
         callId = intent?.getStringExtra(Constants.EXTRA_CALL_ID) ?: run { finish(); return }
         val id = callId ?: run { finish(); return }
 
-        // Dedup
-        if (isActivityAlive && System.currentTimeMillis() - lastAliveTimestamp < 60000) {
-            finish()
-            return
+        // Dedup concurrent FullScreenIntent launches (same or rapid re-post).
+        synchronized(activityLock) {
+            if (isActivityAlive) {
+                finish()
+                return
+            }
+            isActivityAlive = true
+            activeCallId = id
+            lastAliveTimestamp = System.currentTimeMillis()
+            finishActivity = { finish() }
         }
-        isActivityAlive = true
-        lastAliveTimestamp = System.currentTimeMillis()
-        finishActivity = { finish() }
 
         // MIUI overlay fallback for lock screen
         if (isMiui() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -490,8 +496,13 @@ class IncomingCallActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        isActivityAlive = false
-        finishActivity = null
+        synchronized(activityLock) {
+            if (activeCallId == callId) {
+                isActivityAlive = false
+                activeCallId = null
+                finishActivity = null
+            }
+        }
         pulseAnimator?.cancel()
         try {
             wakeLock?.let { if (it.isHeld) it.release() }

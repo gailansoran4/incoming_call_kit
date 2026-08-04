@@ -85,11 +85,17 @@ object NotificationBuilder {
         callerName: String,
         callerNumber: String?,
         androidConfig: Map<String, Any?>?,
-        callerIcon: Bitmap? = null
+        callerIcon: Bitmap? = null,
+        textAccept: String = "Accept",
+        textDecline: String = "Decline",
     ): Notification {
         createIncomingCallChannel(context, androidConfig)
 
         val requestBase = (callId.hashCode() and 0x7FFFFFFF) % 10000
+        val acceptLabel = textAccept.trim().ifEmpty { "Accept" }
+        val declineLabel = textDecline.trim().ifEmpty { "Decline" }
+        // CallStyle forces system "Answer"/"Decline" and ignores custom labels.
+        val useCustomActionLabels = acceptLabel != "Accept" || declineLabel != "Decline"
 
         // Full screen intent → IncomingCallActivity
         val fullScreenIntent = Intent(context, IncomingCallActivity::class.java).apply {
@@ -127,9 +133,6 @@ object NotificationBuilder {
             )
         }
 
-        val textAccept = "Accept"
-        val textDecline = "Decline"
-
         val person = Person.Builder()
             .setName(callerName)
             .setImportant(true)
@@ -140,6 +143,7 @@ object NotificationBuilder {
             .setContentText(callerNumber ?: "Incoming Call")
             .setSmallIcon(android.R.drawable.ic_menu_call)
             .setLargeIcon(callerIcon)
+            .setContentIntent(fullScreenPI)
             .setFullScreenIntent(fullScreenPI, true)
             .setOngoing(true)
             .setAutoCancel(false)
@@ -147,17 +151,18 @@ object NotificationBuilder {
             .setCategory(NotificationCompat.CATEGORY_CALL)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
 
-        // Use CallStyle on API 31+ for native call treatment
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !useCustomActionLabels) {
+            // Native call treatment when labels are the default system strings.
             builder.setStyle(
                 NotificationCompat.CallStyle.forIncomingCall(person, declinePI, answerPI)
             )
         } else {
+            // Heads-up actions use the same accept/decline labels as the full-screen UI.
             builder.addAction(
-                android.R.drawable.ic_menu_call, textAccept, answerPI
+                android.R.drawable.ic_menu_call, acceptLabel, answerPI
             )
             builder.addAction(
-                android.R.drawable.ic_menu_close_clear_cancel, textDecline, declinePI
+                android.R.drawable.ic_menu_close_clear_cancel, declineLabel, declinePI
             )
             builder.addPerson(person)
         }

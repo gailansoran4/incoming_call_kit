@@ -184,8 +184,16 @@ class IncomingCallKitPlugin :
                 val callerName = config["callerName"] as? String ?: "Unknown"
                 val callerNumber = config["callerNumber"] as? String
                 val androidConfig = config["android"] as? Map<String, Any?>
+                val textAccept = config["textAccept"] as? String ?: "Accept"
+                val textDecline = config["textDecline"] as? String ?: "Decline"
                 val notification = NotificationBuilder.buildIncomingCallNotification(
-                    context, callId, callerName, callerNumber, androidConfig
+                    context,
+                    callId,
+                    callerName,
+                    callerNumber,
+                    androidConfig,
+                    textAccept = textAccept,
+                    textDecline = textDecline,
                 )
                 val notifId = NotificationBuilder.getNotificationId(callId)
                 NotificationManagerCompat.from(context).notify(notifId, notification)
