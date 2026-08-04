@@ -1,3 +1,7 @@
+## 0.0.3
+
+* **Android**: Fix full-screen Accept/Decline tap doing nothing. Swipe `OnTouchListener` consumed touches so `OnClickListener` never fired; taps are now handled in the touch listener.
+
 ## 0.0.2
 
 * **Android**: Fix duplicate incoming-call UI caused by posting the same FullScreenIntent notification twice (foreground service + second notify under another id).

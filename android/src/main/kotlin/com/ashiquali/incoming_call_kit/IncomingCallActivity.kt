@@ -21,6 +21,7 @@ import android.util.Log
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.animation.DecelerateInterpolator
 import android.view.WindowManager
 import android.widget.FrameLayout
@@ -382,9 +383,12 @@ class IncomingCallActivity : AppCompatActivity() {
         onTrigger: () -> Unit
     ) {
         val container = findViewById<FrameLayout>(containerId)
+        val tapSlop = ViewConfiguration.get(this).scaledTouchSlop.toFloat()
         var startX = 0f
         var triggered = false
 
+        // OnTouchListener consumes events (returns true), so OnClickListener never runs.
+        // Handle both tap and swipe here.
         container.setOnTouchListener { v, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
@@ -394,20 +398,25 @@ class IncomingCallActivity : AppCompatActivity() {
                 }
                 MotionEvent.ACTION_MOVE -> {
                     val delta = event.rawX - startX
-                    val dragDistance = if (positive) delta.coerceAtLeast(0f) else delta.coerceAtMost(0f)
-                    val progress = (dragDistance.let { kotlin.math.abs(it) } / threshold).coerceIn(0f, 1f)
+                    val dragDistance = if (positive) delta.coerceAtLeast(0f) else (-delta).coerceAtLeast(0f)
+                    val progress = (dragDistance / threshold).coerceIn(0f, 1f)
                     val scale = 1.0f + progress * 0.3f
                     v.scaleX = scale
                     v.scaleY = scale
                     true
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    val delta = event.rawX - startX
-                    val dragDistance = if (positive) delta else -delta
-                    if (dragDistance >= threshold && !triggered) {
-                        triggered = true
-                        v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-                        onTrigger()
+                    if (!triggered) {
+                        val delta = event.rawX - startX
+                        val absDelta = kotlin.math.abs(delta)
+                        val swipeDistance = if (positive) delta else -delta
+                        val isTap = event.action == MotionEvent.ACTION_UP && absDelta <= tapSlop
+                        val isSwipe = swipeDistance >= threshold
+                        if (isTap || isSwipe) {
+                            triggered = true
+                            v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                            onTrigger()
+                        }
                     }
                     v.scaleX = 1f
                     v.scaleY = 1f
