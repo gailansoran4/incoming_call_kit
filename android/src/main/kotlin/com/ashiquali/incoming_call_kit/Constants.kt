@@ -26,15 +26,15 @@ object Constants {
     const val MISSED_CALL_CHANNEL_ID = "incoming_call_kit_missed_channel"
     const val ONGOING_CALL_CHANNEL_ID = "incoming_call_kit_ongoing_channel"
 
-    // Event bus actions
-    const val BROADCAST_ACCEPTED = "incoming_call_kit.ACCEPTED"
-    const val BROADCAST_DECLINED = "incoming_call_kit.DECLINED"
-    const val BROADCAST_TIMEOUT = "incoming_call_kit.TIMEOUT"
-    const val BROADCAST_DISMISSED = "incoming_call_kit.DISMISSED"
-    const val BROADCAST_CALLBACK = "incoming_call_kit.CALLBACK"
-    const val BROADCAST_CALL_START = "incoming_call_kit.CALL_START"
-    const val BROADCAST_CALL_CONNECTED = "incoming_call_kit.CALL_CONNECTED"
-    const val BROADCAST_CALL_ENDED = "incoming_call_kit.CALL_ENDED"
+    // Event bus actions — must match Dart [CallKitAction] enum names (same as iOS).
+    const val BROADCAST_ACCEPTED = "accept"
+    const val BROADCAST_DECLINED = "decline"
+    const val BROADCAST_TIMEOUT = "timeout"
+    const val BROADCAST_DISMISSED = "dismissed"
+    const val BROADCAST_CALLBACK = "callback"
+    const val BROADCAST_CALL_START = "callStart"
+    const val BROADCAST_CALL_CONNECTED = "callConnected"
+    const val BROADCAST_CALL_ENDED = "callEnded"
 
     // SharedPreferences
     const val PREFS_NAME = "incoming_call_kit_config"

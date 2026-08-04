@@ -1,3 +1,8 @@
+## 0.0.4
+
+* **Android**: Emit Dart `CallKitAction` names (`accept`, `decline`, …) on the event bus instead of `incoming_call_kit.ACCEPTED`-style strings. Unknown actions previously fell back to `dismissed`, so heads-up Accept incorrectly triggered decline/reject handlers.
+* **Dart**: `CallKitEvent.fromMap` now normalizes legacy Android broadcast action strings for backward compatibility.
+
 ## 0.0.3
 
 * **Android**: Fix full-screen Accept/Decline tap doing nothing. Swipe `OnTouchListener` consumed touches so `OnClickListener` never fired; taps are now handled in the touch listener.

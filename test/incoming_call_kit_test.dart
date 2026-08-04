@@ -30,6 +30,44 @@ void main() {
     expect(event.extra?['key'], 'value');
   });
 
+  test('CallKitEvent fromMap maps Android broadcast actions', () {
+    expect(
+      CallKitEvent.fromMap({
+        'action': 'incoming_call_kit.ACCEPTED',
+        'callId': 'a',
+      }).action,
+      CallKitAction.accept,
+    );
+    expect(
+      CallKitEvent.fromMap({
+        'action': 'incoming_call_kit.DECLINED',
+        'callId': 'b',
+      }).action,
+      CallKitAction.decline,
+    );
+    expect(
+      CallKitEvent.fromMap({
+        'action': 'incoming_call_kit.TIMEOUT',
+        'callId': 'c',
+      }).action,
+      CallKitAction.timeout,
+    );
+    expect(
+      CallKitEvent.fromMap({
+        'action': 'incoming_call_kit.DISMISSED',
+        'callId': 'd',
+      }).action,
+      CallKitAction.dismissed,
+    );
+    expect(
+      CallKitEvent.fromMap({
+        'action': 'incoming_call_kit.CALL_START',
+        'callId': 'e',
+      }).action,
+      CallKitAction.callStart,
+    );
+  });
+
   test('GradientConfig serialization', () {
     final config = GradientConfig(
       colors: ['#1A1A2E', '#16213E', '#0F3460'],
