@@ -70,7 +70,10 @@ abstract class IncomingCallKitPlatform extends PlatformInterface {
 
   // === BACKGROUND HANDLER ===
 
-  Future<void> registerBackgroundHandler(int callbackHandle) {
+  Future<void> registerBackgroundHandler(
+    int callbackHandle, {
+    required int userCallbackHandle,
+  }) {
     throw UnimplementedError(
       'registerBackgroundHandler() has not been implemented.',
     );

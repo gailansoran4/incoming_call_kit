@@ -1,5 +1,6 @@
 import 'dart:ui';
 
+import 'background/background_callback_dispatcher.dart';
 import 'models/call_kit_event.dart';
 import 'models/call_kit_params.dart';
 import 'platform/incoming_call_kit_platform_interface.dart';
@@ -65,15 +66,19 @@ class IncomingCallKit {
   static void registerBackgroundHandler(
     Future<void> Function(CallKitEvent) handler,
   ) {
-    final callbackHandle = PluginUtilities.getCallbackHandle(handler);
-    if (callbackHandle == null) {
+    final dispatcherHandle = PluginUtilities.getCallbackHandle(
+      callbackDispatcher,
+    );
+    final userHandle = PluginUtilities.getCallbackHandle(handler);
+    if (dispatcherHandle == null || userHandle == null) {
       throw ArgumentError(
         'The handler must be a top-level or static function. '
         'Make sure it is annotated with @pragma(\'vm:entry-point\').',
       );
     }
     IncomingCallKitPlatform.instance.registerBackgroundHandler(
-      callbackHandle.toRawHandle(),
+      dispatcherHandle.toRawHandle(),
+      userCallbackHandle: userHandle.toRawHandle(),
     );
   }
 

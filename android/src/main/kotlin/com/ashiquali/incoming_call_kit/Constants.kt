@@ -41,6 +41,7 @@ object Constants {
     const val PREFS_ACTIVE_CALL_IDS = "active_call_ids"
     const val PREFS_PENDING_EVENTS = "pending_events"
     const val PREFS_BACKGROUND_CALLBACK_HANDLE = "background_callback_handle"
+    const val PREFS_USER_CALLBACK_HANDLE = "user_callback_handle"
 
     // Android 15 FGS
     const val PROPERTY_FGS_SUBTYPE = "incoming_voip_call"

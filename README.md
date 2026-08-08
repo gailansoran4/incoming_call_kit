@@ -409,7 +409,10 @@ void main() {
 }
 ```
 
-> The handler runs in a headless `FlutterEngine`. It won't have access to your app's widget tree or state.
+> The plugin starts a headless `FlutterEngine` with an internal dispatcher that
+> delivers events over a MethodChannel. Your handler runs there — it won't have
+> access to your app's widget tree or Riverpod/GetX UI state. Persist what you
+> need (token, order id in `event.extra`) and call your API directly.
 
 ### 7. Permissions
 

@@ -340,16 +340,23 @@ class IncomingCallKitPlugin :
     }
 
     private fun handleRegisterBackgroundHandler(context: Context, call: MethodCall, result: Result) {
-        val handle = (call.arguments as? Map<String, Any?>)?.get("callbackHandle") as? Long
-            ?: (call.arguments as? Map<String, Any?>)?.get("callbackHandle")?.let {
-                (it as? Number)?.toLong()
-            }
-            ?: run {
-                result.error("INVALID_ARGS", "Missing 'callbackHandle' parameter", null)
-                return
-            }
+        val args = call.arguments as? Map<String, Any?>
+        val dispatcherHandle = (args?.get("callbackHandle") as? Number)?.toLong()
+        val userCallbackHandle = (args?.get("userCallbackHandle") as? Number)?.toLong()
+        if (dispatcherHandle == null || userCallbackHandle == null) {
+            result.error(
+                "INVALID_ARGS",
+                "Missing 'callbackHandle' or 'userCallbackHandle' parameter",
+                null,
+            )
+            return
+        }
 
-        BackgroundCallHandler.setCallbackHandle(context, handle)
+        BackgroundCallHandler.setCallbackHandles(
+            context,
+            dispatcherHandle,
+            userCallbackHandle,
+        )
         result.success(null)
     }
 

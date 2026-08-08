@@ -1,3 +1,9 @@
+## 0.0.6
+
+* **Fix**: Background accept/reject when the app is killed now works. Added a headless Dart `callbackDispatcher` that listens on the background MethodChannel, signals `backgroundHandlerInitialized`, and invokes the registered user handler with `userCallbackHandle`.
+* **Android**: Store dispatcher + user callback handles; ensure FlutterLoader is initialized before starting the headless engine; wait for Dart handler completion before tearing down the engine (no more fixed 2s destroy race).
+* **iOS**: Same dispatcher/user-handle registration and MethodChannel handshake instead of a blind delayed `onBackgroundEvent` send.
+
 ## 0.0.5
 
 * **Android**: Incoming call ringtone always plays, including when the device is on mute/vibrate (alarm stream + MediaPlayer). Missing custom `raw/` tones fall back to the system default ringtone. Vibration is no longer suppressed in silent mode.

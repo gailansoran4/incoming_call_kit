@@ -1,6 +1,8 @@
 package com.ashiquali.incoming_call_kit
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import io.flutter.FlutterInjector
 import io.flutter.embedding.engine.FlutterEngine
@@ -12,40 +14,56 @@ import io.flutter.view.FlutterCallbackInformation
 object BackgroundCallHandler {
     private const val TAG = "BackgroundCallHandler"
     private const val BACKGROUND_CHANNEL = "com.ashiquali.incoming_call_kit/background"
+    private const val DESTROY_GRACE_MS = 1500L
 
     private var flutterEngine: FlutterEngine? = null
     private val pendingEventQueue = mutableListOf<Map<String, Any?>>()
     private var isEngineReady = false
+    private var inflightEventCount = 0
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var destroyRunnable: Runnable? = null
 
-    fun setCallbackHandle(context: Context, handle: Long) {
+    fun setCallbackHandles(
+        context: Context,
+        dispatcherHandle: Long,
+        userCallbackHandle: Long,
+    ) {
         context.getSharedPreferences(Constants.PREFS_NAME, Context.MODE_PRIVATE)
             .edit()
-            .putLong(Constants.PREFS_BACKGROUND_CALLBACK_HANDLE, handle)
+            .putLong(Constants.PREFS_BACKGROUND_CALLBACK_HANDLE, dispatcherHandle)
+            .putLong(Constants.PREFS_USER_CALLBACK_HANDLE, userCallbackHandle)
             .commit()
     }
 
-    fun getCallbackHandle(context: Context): Long {
+    fun getDispatcherHandle(context: Context): Long {
         return context.getSharedPreferences(Constants.PREFS_NAME, Context.MODE_PRIVATE)
             .getLong(Constants.PREFS_BACKGROUND_CALLBACK_HANDLE, 0)
     }
 
+    fun getUserCallbackHandle(context: Context): Long {
+        return context.getSharedPreferences(Constants.PREFS_NAME, Context.MODE_PRIVATE)
+            .getLong(Constants.PREFS_USER_CALLBACK_HANDLE, 0)
+    }
+
     fun hasHandler(context: Context): Boolean {
-        return getCallbackHandle(context) != 0L
+        return getDispatcherHandle(context) != 0L && getUserCallbackHandle(context) != 0L
     }
 
     @Synchronized
     fun dispatchEvent(context: Context, event: Map<String, Any?>) {
-        val handle = getCallbackHandle(context)
-        if (handle == 0L) {
+        val dispatcherHandle = getDispatcherHandle(context)
+        val userCallbackHandle = getUserCallbackHandle(context)
+        if (dispatcherHandle == 0L || userCallbackHandle == 0L) {
             Log.w(TAG, "No background handler registered, persisting event")
             CallKitConfigStore.storePendingEvent(context, event)
             return
         }
 
+        cancelScheduledDestroy()
         pendingEventQueue.add(event)
 
         if (flutterEngine != null && isEngineReady) {
-            flushEvents()
+            flushEvents(context)
             return
         }
 
@@ -55,14 +73,16 @@ object BackgroundCallHandler {
         }
 
         try {
-            val callbackInfo = FlutterCallbackInformation.lookupCallbackInformation(handle)
+            ensureFlutterInitialized(context)
+
+            val callbackInfo = FlutterCallbackInformation.lookupCallbackInformation(dispatcherHandle)
             if (callbackInfo == null) {
-                Log.e(TAG, "Failed to lookup callback information for handle: $handle")
+                Log.e(TAG, "Failed to lookup dispatcher callback for handle: $dispatcherHandle")
                 persistQueuedEvents(context)
                 return
             }
 
-            flutterEngine = FlutterEngine(context, null, false)
+            flutterEngine = FlutterEngine(context.applicationContext, null, false)
             val engine = flutterEngine!!
             isEngineReady = false
 
@@ -74,7 +94,7 @@ object BackgroundCallHandler {
             backgroundChannel.setMethodCallHandler { call: MethodCall, result: MethodChannel.Result ->
                 if (call.method == "backgroundHandlerInitialized") {
                     isEngineReady = true
-                    flushEvents()
+                    flushEvents(context)
                     result.success(null)
                 } else {
                     result.notImplemented()
@@ -96,21 +116,76 @@ object BackgroundCallHandler {
         }
     }
 
-    private fun flushEvents() {
+    private fun ensureFlutterInitialized(context: Context) {
+        val loader = FlutterInjector.instance().flutterLoader()
+        if (!loader.initialized()) {
+            loader.startInitialization(context.applicationContext)
+            loader.ensureInitializationComplete(context.applicationContext, null)
+        }
+    }
+
+    @Synchronized
+    private fun flushEvents(context: Context) {
         val engine = flutterEngine ?: return
+        if (!isEngineReady) return
+
         val backgroundChannel = MethodChannel(
             engine.dartExecutor.binaryMessenger,
             BACKGROUND_CHANNEL
         )
         val toFlush = pendingEventQueue.toList()
         pendingEventQueue.clear()
-        for (event in toFlush) {
-            backgroundChannel.invokeMethod("onBackgroundEvent", event)
+        if (toFlush.isEmpty()) {
+            scheduleDestroy()
+            return
         }
-        // Destroy engine after flushing to prevent memory leak
-        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-            destroyEngine()
-        }, 2000)
+
+        val userCallbackHandle = getUserCallbackHandle(context)
+        inflightEventCount += toFlush.size
+
+        for (event in toFlush) {
+            val payload = event.toMutableMap()
+            payload["userCallbackHandle"] = userCallbackHandle
+            backgroundChannel.invokeMethod(
+                "onBackgroundEvent",
+                payload,
+                object : MethodChannel.Result {
+                    override fun success(result: Any?) {
+                        onBackgroundEventFinished()
+                    }
+
+                    override fun error(errorCode: String, errorMessage: String?, errorDetails: Any?) {
+                        Log.e(TAG, "Background event failed: $errorCode $errorMessage")
+                        onBackgroundEventFinished()
+                    }
+
+                    override fun notImplemented() {
+                        Log.e(TAG, "Background event not implemented")
+                        onBackgroundEventFinished()
+                    }
+                },
+            )
+        }
+    }
+
+    @Synchronized
+    private fun onBackgroundEventFinished() {
+        inflightEventCount = (inflightEventCount - 1).coerceAtLeast(0)
+        if (inflightEventCount == 0 && pendingEventQueue.isEmpty()) {
+            scheduleDestroy()
+        }
+    }
+
+    private fun scheduleDestroy() {
+        cancelScheduledDestroy()
+        val runnable = Runnable { destroyEngine() }
+        destroyRunnable = runnable
+        mainHandler.postDelayed(runnable, DESTROY_GRACE_MS)
+    }
+
+    private fun cancelScheduledDestroy() {
+        destroyRunnable?.let { mainHandler.removeCallbacks(it) }
+        destroyRunnable = null
     }
 
     private fun persistQueuedEvents(context: Context) {
@@ -122,7 +197,9 @@ object BackgroundCallHandler {
 
     @Synchronized
     fun destroyEngine() {
+        cancelScheduledDestroy()
         isEngineReady = false
+        inflightEventCount = 0
         flutterEngine?.destroy()
         flutterEngine = null
     }

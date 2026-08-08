@@ -76,9 +76,13 @@ class IncomingCallKitMethodChannel extends IncomingCallKitPlatform {
   // === BACKGROUND HANDLER ===
 
   @override
-  Future<void> registerBackgroundHandler(int callbackHandle) async {
+  Future<void> registerBackgroundHandler(
+    int callbackHandle, {
+    required int userCallbackHandle,
+  }) async {
     await _methodChannel.invokeMethod('registerBackgroundHandler', {
       'callbackHandle': callbackHandle,
+      'userCallbackHandle': userCallbackHandle,
     });
   }
 

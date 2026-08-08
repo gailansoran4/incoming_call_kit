@@ -33,7 +33,11 @@ public class IncomingCallKitPlugin: NSObject, FlutterPlugin, CXProviderDelegate,
 
     // Background handler
     private var backgroundCallbackHandle: Int64 = 0
+    private var backgroundUserCallbackHandle: Int64 = 0
     private var backgroundEngine: FlutterEngine?
+    private var backgroundChannel: FlutterMethodChannel?
+    private var backgroundEngineReady = false
+    private var pendingBackgroundEvents: [[String: Any?]] = []
 
     // Pending events for when no event sink
     private var pendingEvents: [[String: Any?]] = []
@@ -195,7 +199,11 @@ public class IncomingCallKitPlugin: NSObject, FlutterPlugin, CXProviderDelegate,
         case "clearMissedCallNotification":
             handleClearMissedCallNotification(callId: args?["callId"] as? String, result: result)
         case "registerBackgroundHandler":
-            handleRegisterBackgroundHandler(rawHandle: args?["callbackHandle"] as? Int64, result: result)
+            handleRegisterBackgroundHandler(
+                dispatcherHandle: int64Value(args?["callbackHandle"]),
+                userCallbackHandle: int64Value(args?["userCallbackHandle"]),
+                result: result
+            )
         case "canUseFullScreenIntent":
             result(true) // Always true on iOS
         case "requestFullIntentPermission":
@@ -468,40 +476,88 @@ public class IncomingCallKitPlugin: NSObject, FlutterPlugin, CXProviderDelegate,
 
     // MARK: - Background Handler
 
-    private func handleRegisterBackgroundHandler(rawHandle: Int64?, result: @escaping FlutterResult) {
-        guard let handle = rawHandle else {
-            result(FlutterError(code: "INVALID_ARGS", message: "Missing callback handle", details: nil))
+    private func int64Value(_ value: Any?) -> Int64? {
+        if let v = value as? Int64 { return v }
+        if let v = value as? Int { return Int64(v) }
+        if let v = value as? NSNumber { return v.int64Value }
+        return nil
+    }
+
+    private func handleRegisterBackgroundHandler(
+        dispatcherHandle: Int64?,
+        userCallbackHandle: Int64?,
+        result: @escaping FlutterResult
+    ) {
+        guard let dispatcherHandle, let userCallbackHandle else {
+            result(FlutterError(
+                code: "INVALID_ARGS",
+                message: "Missing callbackHandle or userCallbackHandle",
+                details: nil
+            ))
             return
         }
-        backgroundCallbackHandle = handle
-        UserDefaults.standard.set(handle, forKey: "incoming_call_kit_bg_callback_handle")
+        backgroundCallbackHandle = dispatcherHandle
+        backgroundUserCallbackHandle = userCallbackHandle
+        UserDefaults.standard.set(dispatcherHandle, forKey: "incoming_call_kit_bg_callback_handle")
+        UserDefaults.standard.set(userCallbackHandle, forKey: "incoming_call_kit_user_callback_handle")
         result(nil)
     }
 
     private func dispatchBackgroundEvent(_ event: [String: Any?]) {
-        let handle = backgroundCallbackHandle != 0
+        let dispatcherHandle = backgroundCallbackHandle != 0
             ? backgroundCallbackHandle
             : UserDefaults.standard.object(forKey: "incoming_call_kit_bg_callback_handle") as? Int64 ?? 0
+        let userHandle = backgroundUserCallbackHandle != 0
+            ? backgroundUserCallbackHandle
+            : UserDefaults.standard.object(forKey: "incoming_call_kit_user_callback_handle") as? Int64 ?? 0
 
-        guard handle != 0 else { return }
-        guard let info = FlutterCallbackCache.lookupCallbackInformation(handle) else { return }
+        guard dispatcherHandle != 0, userHandle != 0 else { return }
+        guard let info = FlutterCallbackCache.lookupCallbackInformation(dispatcherHandle) else { return }
+
+        pendingBackgroundEvents.append(event)
 
         if backgroundEngine == nil {
             backgroundEngine = FlutterEngine(name: "incoming_call_kit_bg", project: nil, allowHeadlessExecution: true)
+            guard let engine = backgroundEngine else { return }
+
+            backgroundEngineReady = false
+            engine.run(withEntrypoint: info.callbackName, libraryURI: info.callbackLibraryPath)
+
+            let bgChannel = FlutterMethodChannel(
+                name: "com.ashiquali.incoming_call_kit/background",
+                binaryMessenger: engine.binaryMessenger
+            )
+            backgroundChannel = bgChannel
+            bgChannel.setMethodCallHandler { [weak self] call, result in
+                if call.method == "backgroundHandlerInitialized" {
+                    self?.backgroundEngineReady = true
+                    self?.flushBackgroundEvents()
+                    result(nil)
+                } else {
+                    result(FlutterMethodNotImplemented)
+                }
+            }
+            return
         }
 
-        guard let engine = backgroundEngine else { return }
+        if backgroundEngineReady {
+            flushBackgroundEvents()
+        }
+    }
 
-        engine.run(withEntrypoint: info.callbackName, libraryURI: info.callbackLibraryPath)
+    private func flushBackgroundEvents() {
+        guard backgroundEngineReady, let bgChannel = backgroundChannel else { return }
 
-        let bgChannel = FlutterMethodChannel(
-            name: "com.ashiquali.incoming_call_kit/background",
-            binaryMessenger: engine.binaryMessenger
-        )
+        let userHandle = backgroundUserCallbackHandle != 0
+            ? backgroundUserCallbackHandle
+            : UserDefaults.standard.object(forKey: "incoming_call_kit_user_callback_handle") as? Int64 ?? 0
 
-        // Send event after a brief delay to allow engine initialization
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            bgChannel.invokeMethod("onBackgroundEvent", arguments: event)
+        let toFlush = pendingBackgroundEvents
+        pendingBackgroundEvents.removeAll()
+        for event in toFlush {
+            var payload = event
+            payload["userCallbackHandle"] = userHandle
+            bgChannel.invokeMethod("onBackgroundEvent", arguments: payload)
         }
     }
 
