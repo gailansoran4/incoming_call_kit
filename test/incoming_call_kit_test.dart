@@ -98,5 +98,21 @@ void main() {
     expect(params.handleType, 'generic');
     expect(params.supportsVideo, false);
     expect(params.maximumCallGroups, 2);
+    expect(params.ringtonePath, isNull);
+    expect(params.toMap()['ringtonePath'], isNull);
+  });
+
+  test('Android ringtonePath serializes system default alias', () {
+    const params = AndroidCallKitParams(
+      ringtonePath: 'system_ringtone_default',
+    );
+    expect(params.toMap()['ringtonePath'], 'system_ringtone_default');
+  });
+
+  test('IOS ringtonePath serializes custom sound name', () {
+    const params = IOSCallKitParams(
+      ringtonePath: 'MyRingtone.caf',
+    );
+    expect(params.toMap()['ringtonePath'], 'MyRingtone.caf');
   });
 }

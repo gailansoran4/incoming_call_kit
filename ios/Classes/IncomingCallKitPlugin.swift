@@ -90,8 +90,11 @@ public class IncomingCallKitPlugin: NSObject, FlutterPlugin, CXProviderDelegate,
             config.iconTemplateImageData = UIImage(named: iconName)?.pngData()
         }
 
-        if let ringtonePath = ios["ringtonePath"] as? String, !ringtonePath.isEmpty {
-            config.ringtoneSound = ringtonePath
+        // Leave ringtoneSound nil for Apple's system default. Only set a custom
+        // sound when the file exists in the app bundle — a missing file can
+        // produce CallKit UI with no audible ring.
+        if let customRingtone = resolveCustomRingtoneSound(ios["ringtonePath"] as? String) {
+            config.ringtoneSound = customRingtone
         }
 
         if ios["supportsDTMF"] as? Bool ?? true {
@@ -99,6 +102,46 @@ public class IncomingCallKitPlugin: NSObject, FlutterPlugin, CXProviderDelegate,
         }
 
         provider.configuration = config
+    }
+
+    /// Returns a bundle ringtone filename when a real custom sound is requested
+    /// and present. Nil means use the system default CallKit ringtone.
+    private func resolveCustomRingtoneSound(_ ringtonePath: String?) -> String? {
+        guard let ringtonePath = ringtonePath?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !ringtonePath.isEmpty else {
+            return nil
+        }
+
+        let lower = ringtonePath.lowercased()
+        if lower == "system_ringtone_default" || lower == "default" || lower == "system" {
+            return nil
+        }
+
+        let nsPath = ringtonePath as NSString
+        let name = nsPath.deletingPathExtension
+        let ext = nsPath.pathExtension
+
+        if !ext.isEmpty {
+            if Bundle.main.url(forResource: name, withExtension: ext) != nil {
+                return ringtonePath
+            }
+            if Bundle.main.url(forResource: ringtonePath, withExtension: nil) != nil {
+                return ringtonePath
+            }
+            return nil
+        }
+
+        for candidateExt in ["caf", "aiff", "wav", "mp3"] {
+            if Bundle.main.url(forResource: name, withExtension: candidateExt) != nil {
+                return "\(name).\(candidateExt)"
+            }
+        }
+
+        if Bundle.main.url(forResource: ringtonePath, withExtension: nil) != nil {
+            return ringtonePath
+        }
+
+        return nil
     }
 
     // MARK: - PushKit Setup

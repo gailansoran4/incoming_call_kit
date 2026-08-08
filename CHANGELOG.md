@@ -1,3 +1,8 @@
+## 0.0.5
+
+* **Android**: Incoming call ringtone always plays, including when the device is on mute/vibrate (alarm stream + MediaPlayer). Missing custom `raw/` tones fall back to the system default ringtone. Vibration is no longer suppressed in silent mode.
+* **iOS**: CallKit always uses Apple's system ringtone unless a custom bundle sound exists. `system_ringtone_default` / missing files no longer leave CallKit silent.
+
 ## 0.0.4
 
 * **Android**: Emit Dart `CallKitAction` names (`accept`, `decline`, …) on the event bus instead of `incoming_call_kit.ACCEPTED`-style strings. Unknown actions previously fell back to `dismissed`, so heads-up Accept incorrectly triggered decline/reject handlers.
