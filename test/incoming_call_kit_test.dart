@@ -115,4 +115,24 @@ void main() {
     );
     expect(params.toMap()['ringtonePath'], 'MyRingtone.caf');
   });
+
+  test('nullable accept/decline labels serialize as null', () {
+    final params = CallKitParams(
+      id: 'hide-btns',
+      callerName: 'Title',
+      callerNumber: 'Body',
+      textAccept: null,
+      textDecline: null,
+    );
+
+    final map = params.toMap();
+    expect(map['callerName'], 'Title');
+    expect(map['callerNumber'], 'Body');
+    expect(map['textAccept'], isNull);
+    expect(map['textDecline'], isNull);
+
+    final restored = CallKitParams.fromMap(map);
+    expect(restored.textAccept, isNull);
+    expect(restored.textDecline, isNull);
+  });
 }

@@ -90,8 +90,8 @@ class IncomingCallService : Service() {
         val callerName = config["callerName"] as? String ?: "Unknown"
         val callerNumber = config["callerNumber"] as? String
         val androidConfig = config["android"] as? Map<String, Any?>
-        val textAccept = config["textAccept"] as? String ?: "Accept"
-        val textDecline = config["textDecline"] as? String ?: "Decline"
+        val textAccept = config["textAccept"] as? String
+        val textDecline = config["textDecline"] as? String
         val duration = (config["duration"] as? Number)?.toLong() ?: 30000L
 
         // Build and show notification — initials bitmap immediately (no network delay)

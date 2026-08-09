@@ -86,16 +86,20 @@ object NotificationBuilder {
         callerNumber: String?,
         androidConfig: Map<String, Any?>?,
         callerIcon: Bitmap? = null,
-        textAccept: String = "Accept",
-        textDecline: String = "Decline",
+        textAccept: String? = "Accept",
+        textDecline: String? = "Decline",
     ): Notification {
         createIncomingCallChannel(context, androidConfig)
 
         val requestBase = (callId.hashCode() and 0x7FFFFFFF) % 10000
-        val acceptLabel = textAccept.trim().ifEmpty { "Accept" }
-        val declineLabel = textDecline.trim().ifEmpty { "Decline" }
+        // Null/blank labels hide the corresponding notification action.
+        val acceptLabel = textAccept?.trim().orEmpty()
+        val declineLabel = textDecline?.trim().orEmpty()
+        val showAccept = acceptLabel.isNotEmpty()
+        val showDecline = declineLabel.isNotEmpty()
         // CallStyle forces system "Answer"/"Decline" and ignores custom labels.
-        val useCustomActionLabels = acceptLabel != "Accept" || declineLabel != "Decline"
+        val useCallStyle = showAccept && showDecline &&
+            acceptLabel == "Accept" && declineLabel == "Decline"
 
         // Full screen intent → IncomingCallActivity
         val fullScreenIntent = Intent(context, IncomingCallActivity::class.java).apply {
@@ -151,19 +155,24 @@ object NotificationBuilder {
             .setCategory(NotificationCompat.CATEGORY_CALL)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !useCustomActionLabels) {
-            // Native call treatment when labels are the default system strings.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && useCallStyle) {
+            // Native call treatment when both default system labels are present.
             builder.setStyle(
                 NotificationCompat.CallStyle.forIncomingCall(person, declinePI, answerPI)
             )
         } else {
             // Heads-up actions use the same accept/decline labels as the full-screen UI.
-            builder.addAction(
-                android.R.drawable.ic_menu_call, acceptLabel, answerPI
-            )
-            builder.addAction(
-                android.R.drawable.ic_menu_close_clear_cancel, declineLabel, declinePI
-            )
+            // Omit an action entirely when its label is null/blank.
+            if (showAccept) {
+                builder.addAction(
+                    android.R.drawable.ic_menu_call, acceptLabel, answerPI
+                )
+            }
+            if (showDecline) {
+                builder.addAction(
+                    android.R.drawable.ic_menu_close_clear_cancel, declineLabel, declinePI
+                )
+            }
             builder.addPerson(person)
         }
 

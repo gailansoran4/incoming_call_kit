@@ -338,18 +338,29 @@ class IncomingCallActivity : AppCompatActivity() {
             height = buttonSizePx
         }
 
-        val textAccept = config["textAccept"] as? String ?: "Accept"
-        val textDecline = config["textDecline"] as? String ?: "Decline"
-        findViewById<TextView>(R.id.accept_label).text = textAccept
-        findViewById<TextView>(R.id.decline_label).text = textDecline
+        val textAccept = (config["textAccept"] as? String)?.trim().orEmpty()
+        val textDecline = (config["textDecline"] as? String)?.trim().orEmpty()
+        val showAccept = textAccept.isNotEmpty()
+        val showDecline = textDecline.isNotEmpty()
 
-        acceptContainer.setOnClickListener {
-            it.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-            acceptCall()
+        val acceptColumn = acceptContainer.parent as? android.view.View
+        val declineColumn = declineContainer.parent as? android.view.View
+        acceptColumn?.visibility = if (showAccept) android.view.View.VISIBLE else android.view.View.GONE
+        declineColumn?.visibility = if (showDecline) android.view.View.VISIBLE else android.view.View.GONE
+
+        if (showAccept) {
+            findViewById<TextView>(R.id.accept_label).text = textAccept
+            acceptContainer.setOnClickListener {
+                it.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                acceptCall()
+            }
         }
-        declineContainer.setOnClickListener {
-            it.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-            declineCall()
+        if (showDecline) {
+            findViewById<TextView>(R.id.decline_label).text = textDecline
+            declineContainer.setOnClickListener {
+                it.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                declineCall()
+            }
         }
     }
 
@@ -362,17 +373,24 @@ class IncomingCallActivity : AppCompatActivity() {
         val threshold = ((androidConfig?.get("swipeThreshold") as? Number)?.toFloat() ?: 120f) *
             resources.displayMetrics.density
 
-        setupSwipeForButton(
-            containerId = R.id.accept_button_container,
-            threshold = threshold,
-            positive = true
-        ) { acceptCall() }
+        val textAccept = (config["textAccept"] as? String)?.trim().orEmpty()
+        val textDecline = (config["textDecline"] as? String)?.trim().orEmpty()
 
-        setupSwipeForButton(
-            containerId = R.id.decline_button_container,
-            threshold = threshold,
-            positive = false
-        ) { declineCall() }
+        if (textAccept.isNotEmpty()) {
+            setupSwipeForButton(
+                containerId = R.id.accept_button_container,
+                threshold = threshold,
+                positive = true
+            ) { acceptCall() }
+        }
+
+        if (textDecline.isNotEmpty()) {
+            setupSwipeForButton(
+                containerId = R.id.decline_button_container,
+                threshold = threshold,
+                positive = false
+            ) { declineCall() }
+        }
     }
 
     @Suppress("ClickableViewAccessibility")

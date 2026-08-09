@@ -283,22 +283,30 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
   }
 
   Widget _buildButtons() {
+    final declineLabel = widget.params.textDecline?.trim() ?? '';
+    final acceptLabel = widget.params.textAccept?.trim() ?? '';
+    final showDecline = declineLabel.isNotEmpty;
+    final showAccept = acceptLabel.isNotEmpty;
+    if (!showDecline && !showAccept) return const SizedBox.shrink();
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        _buildActionButton(
-          color: _parseColor(_declineButtonColor),
-          icon: Icons.close,
-          label: widget.params.textDecline,
-          onTap: _handleDecline,
-        ),
-        SizedBox(width: _buttonSize),
-        _buildActionButton(
-          color: _parseColor(_acceptButtonColor),
-          icon: Icons.call,
-          label: widget.params.textAccept,
-          onTap: _handleAccept,
-        ),
+        if (showDecline)
+          _buildActionButton(
+            color: _parseColor(_declineButtonColor),
+            icon: Icons.close,
+            label: declineLabel,
+            onTap: _handleDecline,
+          ),
+        if (showDecline && showAccept) SizedBox(width: _buttonSize),
+        if (showAccept)
+          _buildActionButton(
+            color: _parseColor(_acceptButtonColor),
+            icon: Icons.call,
+            label: acceptLabel,
+            onTap: _handleAccept,
+          ),
       ],
     );
   }

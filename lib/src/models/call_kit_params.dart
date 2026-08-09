@@ -8,8 +8,12 @@ class CallKitParams {
   final String? callerNumber;
   final String? avatar;
   final int type;
-  final String textAccept;
-  final String textDecline;
+
+  /// Accept button label. Null or blank hides the accept button.
+  final String? textAccept;
+
+  /// Decline button label. Null or blank hides the decline button.
+  final String? textDecline;
   final Duration duration;
   final Map<String, dynamic>? extra;
   final NotificationParams? missedCallNotification;
@@ -56,8 +60,8 @@ class CallKitParams {
       callerNumber: map['callerNumber'] as String?,
       avatar: map['avatar'] as String?,
       type: map['type'] as int? ?? 0,
-      textAccept: map['textAccept'] as String? ?? 'Accept',
-      textDecline: map['textDecline'] as String? ?? 'Decline',
+      textAccept: map['textAccept'] as String?,
+      textDecline: map['textDecline'] as String?,
       duration: Duration(milliseconds: map['duration'] as int? ?? 30000),
       extra: map['extra'] != null
           ? Map<String, dynamic>.from(map['extra'] as Map)

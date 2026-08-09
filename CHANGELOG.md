@@ -1,3 +1,8 @@
+## 0.0.7
+
+* **Breaking-ish**: Null or blank `textAccept` / `textDecline` now hide that button (full-screen + notification actions) instead of falling back to "Accept"/"Decline".
+* Constructor defaults remain `Accept` / `Decline` when omitted; pass `null` or `''` explicitly to hide.
+
 ## 0.0.6
 
 * **Fix**: Background accept/reject when the app is killed now works. Added a headless Dart `callbackDispatcher` that listens on the background MethodChannel, signals `backgroundHandlerInitialized`, and invokes the registered user handler with `userCallbackHandle`.
